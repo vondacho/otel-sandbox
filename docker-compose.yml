@@ -1,0 +1,221 @@
+name: otel-sandbox
+
+# Host ports
+#   8000  frontend (nginx)          8080  order-service
+#   8585  Microcks UI / mocks       19092 Redpanda (Kafka API)   19644 Redpanda admin
+#   3000  Grafana                   9090  Prometheus             16686 Jaeger UI
+#   4317/4318 OTLP (collector)      15432 PostgreSQL             8088  Redpanda Console (profile: tools)
+
+x-otel-env: &otel-env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_METRIC_EXPORT_INTERVAL: "10000"
+  OTEL_LOGS_EXPORTER: none
+
+services:
+
+  # ---------------------------------------------------------------- system under test
+
+  frontend:
+    build: ./frontend
+    ports: ["8000:80"]
+    depends_on:
+      order-service:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    ports: ["8080:8080"]
+    environment:
+      <<: *otel-env
+      OTEL_SERVICE_NAME: order-service
+      OTEL_RESOURCE_ATTRIBUTES: service.version=0.1.0,deployment.environment.name=sandbox
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      PRICING_BASE_URL: http://microcks:8080/rest/Pricing+API/1.0.0
+      WAREHOUSE_STOCK_TOPIC: WarehouseEvents-1.0.0-stock-levels
+    healthcheck:
+      # the JRE image has no curl: plain HTTP over bash's /dev/tcp
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      microcks-importer:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  postgres:
+    image: postgres:18-alpine
+    ports: ["15432:5432"]
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---------------------------------------------------------------- messaging
+
+  redpanda:
+    image: redpandadata/redpanda:v26.2.3
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=1G
+      - --default-log-level=warn
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "19092:19092"
+      - "19644:9644"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redpanda-console:
+    image: redpandadata/console:v3.12.0
+    profiles: [tools]
+    ports: ["8088:8080"]
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      REDPANDA_ADMINAPI_ENABLED: "true"
+      REDPANDA_ADMINAPI_URLS: http://redpanda:9644
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------- external systems (mocked)
+
+  microcks:
+    image: quay.io/microcks/microcks-uber:1.15.0
+    ports: ["8585:8080"]
+    environment:
+      ASYNC_MINION_URL: http://microcks-async-minion:8081
+
+  microcks-async-minion:
+    image: quay.io/microcks/microcks-uber-async-minion:1.15.0
+    restart: on-failure
+    environment:
+      MICROCKS_HOST_PORT: microcks:8080
+      ASYNC_PROTOCOLS: ",KAFKA"
+      KAFKA_BOOTSTRAP_SERVER: redpanda:9092
+    depends_on:
+      microcks:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+
+  # One-shot: uploads the OpenAPI and AsyncAPI contracts; Microcks turns them into mocks.
+  microcks-importer:
+    image: curlimages/curl:8.17.0
+    volumes:
+      - ./contracts:/contracts:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        until curl -fs http://microcks:8080/api/health > /dev/null; do echo "waiting for microcks"; sleep 2; done
+        for f in /contracts/*.yaml; do
+          echo "importing $$f"
+          curl -fsS -X POST -F "file=@$$f" "http://microcks:8080/api/artifact/upload?mainArtifact=true"
+          echo
+        done
+    depends_on:
+      microcks:
+        condition: service_started
+
+  # ---------------------------------------------------------------- observability
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      jaeger:
+        condition: service_started
+
+  jaeger:
+    # 2.21 removed the v1 HTTP API (/api/services...) still used by the Grafana Jaeger datasource
+    image: jaegertracing/jaeger:2.20.0
+    command: ["--config=/etc/jaeger/config.yaml"]
+    user: "0"   # Badger needs write access to the named volume
+    volumes:
+      - ./observability/jaeger/config.yaml:/etc/jaeger/config.yaml:ro
+      - ./observability/jaeger/ui-config.json:/etc/jaeger/ui-config.json:ro
+      - jaeger-data:/badger
+    ports: ["16686:16686"]
+
+  prometheus:
+    image: prom/prometheus:v3.13.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --enable-feature=exemplar-storage
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:13.0.9
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/otel-sandbox.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["3000:3000"]
+    depends_on: [prometheus, jaeger]
+
+  # ---------------------------------------------------------------- optional traffic
+
+  loadgen:
+    image: curlimages/curl:8.17.0
+    profiles: [load]
+    volumes:
+      - ./loadgen/loadgen.sh:/loadgen.sh:ro
+    entrypoint: ["/bin/sh", "/loadgen.sh"]
+    environment:
+      TARGET: http://frontend
+    depends_on: [frontend]
+
+volumes:
+  postgres-data:
+  redpanda-data:
+  jaeger-data:
+  prometheus-data:
+  grafana-data:

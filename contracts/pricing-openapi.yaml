@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: Pricing API
+  version: 1.0.0
+  description: |
+    External Pricing system. Owned by another team; only its contract is known here.
+    Mocked by Microcks: the named examples below become the mock responses
+    (dispatching on the `sku` path parameter).
+servers:
+  - url: http://microcks:8080/rest/Pricing+API/1.0.0
+paths:
+  /prices/{sku}:
+    get:
+      operationId: getPrice
+      summary: Get the current unit price of a product
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          examples:
+            SKU-001:
+              value: SKU-001
+            SKU-002:
+              value: SKU-002
+            SKU-003:
+              value: SKU-003
+            SKU-999:
+              value: SKU-999
+      responses:
+        "200":
+          description: Current price
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Price"
+              examples:
+                SKU-001:
+                  value: { sku: SKU-001, amount: 19.99, currency: EUR }
+                SKU-002:
+                  value: { sku: SKU-002, amount: 5.49, currency: EUR }
+                SKU-003:
+                  value: { sku: SKU-003, amount: 129.00, currency: EUR }
+        "404":
+          description: Unknown product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                SKU-999:
+                  value: { code: UNKNOWN_SKU, message: "No price for SKU-999" }
+components:
+  schemas:
+    Price:
+      type: object
+      required: [sku, amount, currency]
+      properties:
+        sku:
+          type: string
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

@@ -1,0 +1,54 @@
+# Jaeger v2 (built on the OTel Collector). Traces are persisted in Badger (embedded key/value store)
+# on a docker volume; the "Monitor" tab reads the spanmetrics series from Prometheus.
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      endpoint: 0.0.0.0:13133
+
+  jaeger_query:
+    storage:
+      traces: trace_store
+      metrics: metrics_store
+    ui:
+      config_file: /etc/jaeger/ui-config.json
+
+  jaeger_storage:
+    backends:
+      trace_store:
+        badger:
+          directories:
+            keys: /badger/keys
+            values: /badger/values
+          ephemeral: false
+          ttl:
+            spans: 72h
+    metric_backends:
+      metrics_store:
+        prometheus:
+          endpoint: http://prometheus:9090
+          normalize_calls: true
+          normalize_duration: true
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: trace_store

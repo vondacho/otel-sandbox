@@ -1,0 +1,7 @@
+**/target
+.git
+.idea
+observability
+frontend
+contracts
+loadgen

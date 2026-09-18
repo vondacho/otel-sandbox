@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>io.otelsandbox</groupId>
+    <artifactId>otel-sandbox</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>OTEL sandbox</name>
+    <description>Spring Boot service + frontend + mocked external systems, instrumented with OpenTelemetry</description>
+
+    <modules>
+        <module>order-service</module>
+        <module>e2e-tests</module>
+    </modules>
+
+    <properties>
+        <java.version>25</java.version>
+        <opentelemetry-javaagent.version>2.31.1</opentelemetry-javaagent.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-instrumentation-annotations</artifactId>
+                <version>${opentelemetry-javaagent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry.javaagent</groupId>
+                <artifactId>opentelemetry-javaagent</artifactId>
+                <version>${opentelemetry-javaagent.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

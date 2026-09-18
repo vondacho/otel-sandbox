@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.otelsandbox</groupId>
+        <artifactId>otel-sandbox</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>e2e-tests</artifactId>
+    <name>e2e-tests</name>
+    <description>Black-box end-to-end tests against the running docker compose stack</description>
+
+    <properties>
+        <!-- The suite needs the whole stack up: run it with `mvn verify -Pe2e` -->
+        <skipITs>true</skipITs>
+        <rest-assured.version>6.0.1</rest-assured.version>
+        <maven.install.skip>true</maven.install.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+
+        <e2e.frontend.url>http://localhost:8000</e2e.frontend.url>
+        <e2e.order-service.url>http://localhost:8080</e2e.order-service.url>
+        <e2e.microcks.url>http://localhost:8585</e2e.microcks.url>
+        <e2e.jaeger.url>http://localhost:16686</e2e.jaeger.url>
+        <e2e.prometheus.url>http://localhost:9090</e2e.prometheus.url>
+        <e2e.grafana.url>http://localhost:3000</e2e.grafana.url>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <version>${rest-assured.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <e2e.frontend.url>${e2e.frontend.url}</e2e.frontend.url>
+                        <e2e.order-service.url>${e2e.order-service.url}</e2e.order-service.url>
+                        <e2e.microcks.url>${e2e.microcks.url}</e2e.microcks.url>
+                        <e2e.jaeger.url>${e2e.jaeger.url}</e2e.jaeger.url>
+                        <e2e.prometheus.url>${e2e.prometheus.url}</e2e.prometheus.url>
+                        <e2e.grafana.url>${e2e.grafana.url}</e2e.grafana.url>
+                        <e2e.dashboard.file>${project.basedir}/../observability/grafana/dashboards/otel-sandbox.json</e2e.dashboard.file>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>e2e</id>
+            <properties>
+                <skipITs>false</skipITs>
+            </properties>
+        </profile>
+    </profiles>
+</project>

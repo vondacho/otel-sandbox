@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:15432}/orders
+    username: ${DB_USER:orders}
+    password: ${DB_PASSWORD:orders}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
+    consumer:
+      group-id: order-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        # the Microcks topic appears only once the async mock starts publishing
+        metadata.max.age.ms: 5000
+  mvc:
+    problemdetails:
+      enabled: true
+
+sandbox:
+  pricing:
+    base-url: ${PRICING_BASE_URL:http://localhost:8585/rest/Pricing+API/1.0.0}
+    timeout: 2s
+  warehouse:
+    stock-topic: ${WAREHOUSE_STOCK_TOPIC:WarehouseEvents-1.0.0-stock-levels}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

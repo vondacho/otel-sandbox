@@ -1,0 +1,20 @@
+:root { --fg: #1d2330; --muted: #667085; --line: #e4e7ec; --ok: #067647; --ko: #b42318; --accent: #3e63dd; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: #f8f9fb; }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px;
+         padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--line); }
+header h1 { margin: 0; font-size: 18px; }
+nav a { margin-left: 12px; color: var(--accent); text-decoration: none; }
+main { max-width: 960px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+section { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px; overflow-x: auto; }
+h2 { margin: 0 0 12px; font-size: 16px; }
+h2 small { color: var(--muted); font-weight: normal; }
+form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
+input, select, button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; }
+button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; font-size: 13px; }
+.ACCEPTED, .ok { color: var(--ok); }
+.REJECTED, .ko { color: var(--ko); }
