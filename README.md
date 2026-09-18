@@ -1,2 +1,2 @@
 # observability-sandbox
-Some examples to set up an OTEL-compliant observability stack
+Some examples of setting up and use of an OTEL-compliant observability stack
